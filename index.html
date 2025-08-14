@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Work Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="container">
+      <h1>Daily Work Tracker</h1>
+      <p class="subtitle">Log your daily office work, edit easily, and keep everything organized.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="toolbar" aria-label="Filters and utilities">
+      <div class="toolbar-group">
+        <input id="searchInput" type="search" placeholder="Search notes..." aria-label="Search notes" />
+        <div class="date-range">
+          <label>
+            <span>From</span>
+            <input id="fromDate" type="date" />
+          </label>
+          <label>
+            <span>To</span>
+            <input id="toDate" type="date" />
+          </label>
+        </div>
+      </div>
+      <div class="toolbar-actions">
+        <button id="clearFiltersBtn" class="btn secondary" type="button">Clear filters</button>
+        <button id="exportBtn" class="btn" type="button">Export</button>
+        <input id="importInput" type="file" accept="application/json" hidden />
+        <button id="importBtn" class="btn" type="button">Import</button>
+        <button id="printBtn" class="btn secondary" type="button">Print</button>
+        <!-- OneDrive controls -->
+        <button id="signinBtn" class="btn" type="button">Sign in OneDrive</button>
+        <button id="signoutBtn" class="btn secondary" type="button" hidden>Sign out</button>
+        <button id="syncBtn" class="btn" type="button" hidden>Sync now</button>
+        <!-- Local Excel controls -->
+        <button id="pickLocalBtn" class="btn" type="button">Pick Excel file</button>
+        <button id="saveLocalBtn" class="btn secondary" type="button">Save to Excel</button>
+      </div>
+    </section>
+
+    <section class="filters-advanced" aria-label="Quick filters">
+      <div class="filters-row">
+        <div class="chip-group" aria-label="Quick ranges">
+          <button class="chip" id="qrToday" type="button">Today</button>
+          <button class="chip" id="qr7" type="button">Last 7</button>
+          <button class="chip" id="qrThisMonth" type="button">This month</button>
+          <button class="chip" id="qrLastMonth" type="button">Last month</button>
+          <button class="chip" id="qrAll" type="button">All</button>
+        </div>
+        <div class="weekday-group" id="weekdayFilters" aria-label="Weekday filters">
+          <button class="chip toggle" data-day="Mon" type="button">Mon</button>
+          <button class="chip toggle" data-day="Tue" type="button">Tue</button>
+          <button class="chip toggle" data-day="Wed" type="button">Wed</button>
+          <button class="chip toggle" data-day="Thu" type="button">Thu</button>
+          <button class="chip toggle" data-day="Fri" type="button">Fri</button>
+          <button class="chip toggle" data-day="Sat" type="button">Sat</button>
+          <button class="chip toggle" data-day="Sun" type="button">Sun</button>
+        </div>
+        <div class="sort-group">
+          <label for="sortSelect">Sort</label>
+          <select id="sortSelect">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="updated">Recently updated</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="editor" aria-label="Add or edit entry">
+      <form id="entryForm">
+        <div class="form-row">
+          <label for="dateInput">Date</label>
+          <input id="dateInput" type="date" required />
+        </div>
+        <div class="form-row">
+          <label for="dayDisplay">Day</label>
+          <input id="dayDisplay" type="text" readonly aria-readonly="true" />
+        </div>
+        <div class="form-row">
+          <label for="notesInput">Work details</label>
+          <textarea id="notesInput" rows="6" placeholder="What did you do today? Use bullets or paragraphs." required></textarea>
+        </div>
+        <input id="currentEditId" type="hidden" />
+        <div class="form-actions">
+          <button id="saveBtn" class="btn primary" type="submit">Save entry</button>
+          <button id="cancelEditBtn" class="btn secondary" type="button" hidden>Cancel edit</button>
+          <button id="clearFormBtn" class="btn ghost" type="button">Clear form</button>
+        </div>
+      </form>
+    </section>
+
+    <section aria-label="Entries list">
+      <h2 class="section-title">Entries</h2>
+      <div id="resultsSummary" class="results-summary"></div>
+      <div id="emptyState" class="empty-state" hidden>
+        <p>No entries yet. Add your first entry above.</p>
+      </div>
+      <div id="entriesList" class="entries-list"></div>
+      <div class="entry-meta" id="cloudStatus"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container">
+      <small>Data is stored locally in your browser. Use Export/Import to backup or move data.</small>
+    </div>
+  </footer>
+
+  <!-- Viewer Modal -->
+  <div id="viewerModal" class="modal" hidden>
+    <div class="modal-backdrop" id="viewerBackdrop"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="viewerTitle">
+      <div class="modal-header">
+        <div>
+          <div id="viewerTitle" class="viewer-title"></div>
+          <div id="viewerMeta" class="viewer-meta"></div>
+        </div>
+        <button id="viewerCloseBtn" class="btn ghost" aria-label="Close">✕</button>
+      </div>
+      <div id="viewerNotes" class="viewer-notes"></div>
+      <div class="modal-actions">
+        <button id="viewerCopyBtn" class="btn secondary" type="button">Copy</button>
+        <button id="viewerPrintBtn" class="btn" type="button">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html> 
